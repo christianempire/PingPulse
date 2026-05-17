@@ -1,22 +1,35 @@
-import { Tray, Menu, nativeImage } from 'electron'
+import { app, Tray, Menu, nativeImage } from 'electron'
+import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import type { StatusColor } from '@shared/types'
 
 let tray: Tray | null = null
 
-const COLOR_RGB: Record<StatusColor, [number, number, number]> = {
-  green: [34, 197, 94],
-  yellow: [234, 179, 8],
-  orange: [249, 115, 22],
-  red: [239, 68, 68],
-  gray: [107, 114, 128]
+// Resolve resources/icons in both dev and packaged. In dev, app.getAppPath()
+// points at the project root; in packaged builds, extraResources copies the
+// folder next to the exe under `process.resourcesPath`.
+function iconsRoot(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icons')
+    : join(app.getAppPath(), 'resources', 'icons')
 }
 
-// Builds a 16x16 BGRA bitmap (Electron's createFromBitmap expects BGRA on Win/Linux)
-// containing a soft-edged colored disc on a transparent background.
-function buildIcon(color: StatusColor): Electron.NativeImage {
+const iconCache = new Map<StatusColor, Electron.NativeImage>()
+
+// Fallback BGRA renderer — used if the .ico files are missing (e.g. someone
+// forgot to run `npm run build:icons`).
+const FALLBACK_RGB: Record<StatusColor, [number, number, number]> = {
+  green: [34, 214, 154],
+  yellow: [240, 183, 43],
+  orange: [255, 138, 71],
+  red: [255, 93, 107],
+  gray: [124, 132, 147]
+}
+
+function buildFallback(color: StatusColor): Electron.NativeImage {
   const size = 16
   const buf = Buffer.alloc(size * size * 4)
-  const [r, g, b] = COLOR_RGB[color]
+  const [r, g, b] = FALLBACK_RGB[color]
   const cx = (size - 1) / 2
   const cy = (size - 1) / 2
   const radius = 6
@@ -37,6 +50,15 @@ function buildIcon(color: StatusColor): Electron.NativeImage {
   return nativeImage.createFromBitmap(buf, { width: size, height: size })
 }
 
+function loadIcon(color: StatusColor): Electron.NativeImage {
+  const cached = iconCache.get(color)
+  if (cached) return cached
+  const path = join(iconsRoot(), `tray-${color}.ico`)
+  const img = existsSync(path) ? nativeImage.createFromPath(path) : buildFallback(color)
+  iconCache.set(color, img)
+  return img
+}
+
 export interface TrayCallbacks {
   onShow: () => void
   onToggleMonitoring: () => void
@@ -46,7 +68,7 @@ export interface TrayCallbacks {
 
 export function ensureTray(cb: TrayCallbacks): Tray {
   if (tray) return tray
-  tray = new Tray(buildIcon('gray'))
+  tray = new Tray(loadIcon('gray'))
   tray.setToolTip('PingPulse')
   refreshMenu(cb)
   tray.on('click', cb.onShow)
@@ -69,7 +91,7 @@ export function refreshMenu(cb: TrayCallbacks) {
 
 export function updateTrayStatus(color: StatusColor, tooltip: string) {
   if (!tray) return
-  tray.setImage(buildIcon(color))
+  tray.setImage(loadIcon(color))
   tray.setToolTip(tooltip)
 }
 
@@ -77,4 +99,3 @@ export function destroyTray() {
   tray?.destroy()
   tray = null
 }
-

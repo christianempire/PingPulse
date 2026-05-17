@@ -1,20 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useSettings } from '../state/settingsStore'
-import { selectThresholds, useThresholds } from '../state/thresholdsStore'
-import type { Target } from '@shared/types'
+import { useSamples } from '../state/samplesStore'
+import { useThresholds } from '../state/thresholdsStore'
+import { computeStats } from '../lib/stats'
+import { statusFromStats } from '../lib/status'
+import type { StatusColor, Target } from '@shared/types'
+import { STATUS_COLOR_HEX } from '@shared/thresholds'
+import { pingpulse } from '../api'
+import { I } from './primitives'
 
-interface Props { onClose: () => void }
+interface Props {
+  onClose: () => void
+}
 
 export default function SettingsPanel({ onClose }: Props) {
   const settings = useSettings(s => s.settings)!
   const patch = useSettings(s => s.patch)
+  const samplesByTarget = useSamples(s => s.samplesByTarget)
+  const thresholdsMap = useThresholds(s => s.map)
   const [newLabel, setNewLabel] = useState('')
   const [newHost, setNewHost] = useState('')
   const [isPackaged, setIsPackaged] = useState<boolean | null>(null)
-  const activeThresholds = useThresholds(selectThresholds(settings.activeTargetId))
 
   useEffect(() => {
-    window.pingpulse.isPackaged().then(setIsPackaged)
+    pingpulse.isPackaged().then(setIsPackaged)
   }, [])
 
   const addTarget = () => {
@@ -36,208 +45,361 @@ export default function SettingsPanel({ onClose }: Props) {
     patch({ targets: next, activeTargetId })
   }
 
+  const activeTarget = settings.targets.find(t => t.id === settings.activeTargetId)
+  const activeThresholds = settings.activeTargetId ? thresholdsMap[settings.activeTargetId] : undefined
+
   return (
-    <div className="fixed inset-0 bg-black/60 grid place-items-center z-40" onClick={onClose}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'grid',
+        placeItems: 'center',
+        zIndex: 40,
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)'
+      }}
+      onClick={onClose}
+    >
       <div
-        className="bg-surface-1 border border-surface-border rounded-2xl w-[640px] max-w-[92vw] max-h-[88vh] overflow-y-auto shadow-card"
+        className="glass"
+        style={{
+          width: 720,
+          maxWidth: '92vw',
+          maxHeight: '88vh',
+          borderRadius: 22,
+          padding: '20px 24px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          overflow: 'hidden'
+        }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
-          <div className="font-semibold">Settings</div>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+          <span className="t-display" style={{ fontSize: 22, fontWeight: 600, letterSpacing: -0.4 }}>
+            Settings
+          </span>
+          <span style={{ flex: 1 }} />
           <button
-            className="text-slate-400 hover:text-slate-200 text-lg"
             onClick={onClose}
             aria-label="Close"
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 999,
+              border: 0,
+              background: 'rgba(255,255,255,0.06)',
+              color: 'var(--fg-1)',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'pointer'
+            }}
           >
-            ×
+            <I.Close />
           </button>
         </div>
-        <div className="p-5 grid gap-5">
-          <Field label="Ping interval (ms)">
-            <input
-              type="number"
-              min={250}
-              step={50}
-              className="input"
-              value={settings.intervalMs}
-              onChange={e => patch({ intervalMs: Math.max(250, Number(e.target.value) || 1000) })}
-            />
-          </Field>
 
-          <Field label="Latency alert threshold (ms)">
-            <input
-              type="number"
-              min={20}
-              step={10}
-              className="input"
-              value={settings.latencyThresholdMs}
-              onChange={e => patch({ latencyThresholdMs: Math.max(20, Number(e.target.value) || 150) })}
-            />
-          </Field>
+        <div className="scroll" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Section label="Monitoring">
+            <Row label="Ping interval" sub="Lower values use more CPU & battery">
+              <NumericInput
+                value={settings.intervalMs}
+                min={250}
+                step={50}
+                unit="ms"
+                onChange={v => patch({ intervalMs: Math.max(250, v || 1000) })}
+              />
+            </Row>
+            <Row label="Latency alert threshold" sub="Highlight any sample above this value">
+              <NumericInput
+                value={settings.latencyThresholdMs}
+                min={20}
+                step={10}
+                unit="ms"
+                onChange={v => patch({ latencyThresholdMs: Math.max(20, v || 150) })}
+              />
+            </Row>
+            <Row label="Rolling window" sub="History kept in memory (capped at 4 000 samples / target)">
+              <NumericInput
+                value={settings.rollingWindowMin}
+                min={1}
+                step={1}
+                unit="min"
+                onChange={v => patch({ rollingWindowMin: Math.max(1, v || 10) })}
+              />
+            </Row>
+          </Section>
 
-          <Field label="Rolling graph window (minutes)">
-            <input
-              type="number"
-              min={1}
-              max={120}
-              className="input"
-              value={settings.rollingWindowMin}
-              onChange={e => patch({ rollingWindowMin: Math.max(1, Number(e.target.value) || 10) })}
-            />
-          </Field>
+          <Section label="Notifications & window">
+            <Row label="Packet loss alerts" sub="Notify on 3+ consecutive timeouts">
+              <Toggle on={settings.lossAlertEnabled} onChange={v => patch({ lossAlertEnabled: v })} />
+            </Row>
+            <Row label="Desktop notifications" sub="Native toasts for spike / loss / recovered">
+              <Toggle on={settings.desktopNotifications} onChange={v => patch({ desktopNotifications: v })} />
+            </Row>
+            <Row label="Dark mode" sub="Light theme is a polished alternative">
+              <Toggle on={settings.darkMode} onChange={v => patch({ darkMode: v })} />
+            </Row>
+            <Row label="Compact overlay" sub="Always-on-top mini window (260 × 96)">
+              <Toggle on={settings.compactMode} onChange={v => patch({ compactMode: v })} />
+            </Row>
+            <Row label="Start minimized to tray">
+              <Toggle on={settings.startMinimized} onChange={v => patch({ startMinimized: v })} />
+            </Row>
+            <div>
+              <Row
+                label="Launch on Windows startup"
+                sub={'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\PingPulse'}
+              >
+                <Toggle on={settings.launchOnStartup} onChange={v => patch({ launchOnStartup: v })} />
+              </Row>
+              {isPackaged === false && (
+                <div className="mono" style={{ fontSize: 10, color: 'var(--st-yellow)', marginTop: -4, paddingLeft: 2 }}>
+                  Dev mode — autostart only sticks after <span style={{ color: 'var(--fg-1)' }}>npm run deploy</span>.
+                </div>
+              )}
+            </div>
+          </Section>
 
-          <Toggle
-            label="Packet loss alerts"
-            checked={settings.lossAlertEnabled}
-            onChange={v => patch({ lossAlertEnabled: v })}
-          />
-          <Toggle
-            label="Desktop notifications"
-            checked={settings.desktopNotifications}
-            onChange={v => patch({ desktopNotifications: v })}
-          />
-          <Toggle
-            label="Dark mode"
-            checked={settings.darkMode}
-            onChange={v => patch({ darkMode: v })}
-          />
-          <Toggle
-            label="Compact overlay mode"
-            checked={settings.compactMode}
-            onChange={v => patch({ compactMode: v })}
-          />
-          <Toggle
-            label="Start minimized to tray"
-            checked={settings.startMinimized}
-            onChange={v => patch({ startMinimized: v })}
-          />
-          <div>
-            <Toggle
-              label="Launch on Windows startup"
-              checked={settings.launchOnStartup}
-              onChange={v => patch({ launchOnStartup: v })}
-            />
-            {isPackaged === false && (
-              <div className="text-xs text-amber-400/80 mt-1">
-                Dev mode — autostart will only stick after <span className="font-mono">npm run deploy</span>.
+          {activeTarget && activeThresholds && (
+            <div className="glass--inset" style={{ marginTop: 6, padding: '14px 16px', borderRadius: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+                <span className="t-eyebrow">Calibration · {activeTarget.label}</span>
+                <span style={{ flex: 1 }} />
+                <span
+                  className="chip"
+                  style={{
+                    height: 22,
+                    fontSize: 10.5,
+                    paddingInline: 10,
+                    color: activeThresholds.calibrated ? 'var(--st-green)' : 'var(--st-yellow)',
+                    background: activeThresholds.calibrated ? 'rgba(34,214,154,0.08)' : 'rgba(240,183,43,0.08)',
+                    boxShadow: activeThresholds.calibrated
+                      ? '0 0 0 1px rgba(34,214,154,0.32)'
+                      : '0 0 0 1px rgba(240,183,43,0.32)'
+                  }}
+                >
+                  {activeThresholds.calibrated ? (
+                    <>
+                      <I.Check /> Calibrated · {activeThresholds.samples.toLocaleString()} samples
+                    </>
+                  ) : (
+                    <>Calibrating · {activeThresholds.samples} / 500</>
+                  )}
+                </span>
               </div>
-            )}
-          </div>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <CalibrationBar label="Latency ok" value={`${activeThresholds.latency.ok} ms`} fillPct={50} color="var(--st-yellow)" />
+                <CalibrationBar label="Latency bad" value={`${activeThresholds.latency.bad} ms`} fillPct={75} color="var(--st-orange)" />
+                <CalibrationBar label="Jitter bad" value={`${activeThresholds.jitter.bad} ms`} fillPct={60} color="var(--st-orange)" />
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
+                <CalibrationBar label="Loss good" value={`${activeThresholds.lossPct.good} %`} fillPct={20} color="var(--st-green)" />
+                <CalibrationBar label="Loss ok" value={`${activeThresholds.lossPct.ok} %`} fillPct={45} color="var(--st-yellow)" />
+                <CalibrationBar label="Loss bad" value={`${activeThresholds.lossPct.bad} %`} fillPct={70} color="var(--st-orange)" />
+              </div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 12 }}>
+                Derived from p95 latency · auto-recalibrates every 50 000 samples
+              </div>
+            </div>
+          )}
 
-          <div className="bg-surface-2 border border-surface-border rounded-md px-3 py-2.5">
-            <div className="flex items-center justify-between">
-              <span className="stat-label">Calibration</span>
-              <span className={`text-xs px-2 py-0.5 rounded ${activeThresholds.calibrated ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
-                {activeThresholds.calibrated ? 'Calibrated to your network' : `Using seed thresholds (${activeThresholds.samples}/500 samples)`}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <span className="t-eyebrow">Targets</span>
+              <span style={{ flex: 1 }} />
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>
+                {settings.targets.length} active
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-x-4 gap-y-1 mt-2 text-xs text-slate-400">
-              <Stat label="Latency ok" val={`${activeThresholds.latency.ok} ms`} />
-              <Stat label="Latency bad" val={`${activeThresholds.latency.bad} ms`} />
-              <Stat label="Jitter bad" val={`${activeThresholds.jitter.bad} ms`} />
-              <Stat label="Loss good" val={`${activeThresholds.lossPct.good}%`} />
-              <Stat label="Loss ok" val={`${activeThresholds.lossPct.ok}%`} />
-              <Stat label="Loss bad" val={`${activeThresholds.lossPct.bad}%`} />
-            </div>
-          </div>
-
-          <div>
-            <div className="stat-label mb-2">Targets</div>
-            <div className="grid gap-2">
-              {settings.targets.map(t => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between gap-3 bg-surface-2 border border-surface-border rounded-md px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm text-slate-200 truncate">{t.label}</div>
-                    <div className="text-xs text-slate-500 font-mono truncate">{t.host}</div>
-                  </div>
-                  <button
-                    className="text-xs px-2 py-1 rounded border border-surface-border hover:bg-surface-3 text-slate-300 disabled:opacity-40"
-                    onClick={() => removeTarget(t.id)}
-                    disabled={settings.targets.length <= 1}
-                    title={settings.targets.length <= 1 ? 'At least one target required' : 'Remove'}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {settings.targets.map(t => {
+                const tSamples = samplesByTarget[t.id] ?? []
+                const tStats = computeStats(tSamples)
+                const tThresh = thresholdsMap[t.id]
+                const tStatus: StatusColor = tThresh ? statusFromStats(tStats, tThresh) : 'gray'
+                const dotColor = STATUS_COLOR_HEX[tStatus]
+                return (
+                  <div
+                    key={t.id}
+                    className="glass--inset"
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12
+                    }}
                   >
-                    Remove
-                  </button>
-                </div>
-              ))}
+                    <span
+                      className={`dot dot--${tStatus}`}
+                      style={{ flex: '0 0 8px', background: dotColor }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: 13, color: 'var(--fg-0)', fontWeight: 500 }}>{t.label}</span>
+                      <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>{t.host}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: 4 }}>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--fg-1)' }}>
+                        {tStats.current === null ? '—' : `${Math.round(tStats.current)} ms`} · {tStats.lossPct.toFixed(1)}%
+                      </span>
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 9.5,
+                          marginTop: 2,
+                          color: tThresh?.calibrated ? 'var(--st-green)' : 'var(--st-yellow)'
+                        }}
+                      >
+                        {tThresh?.calibrated
+                          ? `calibrated · ${tThresh.samples.toLocaleString()} samples`
+                          : `calibrating · ${tThresh?.samples ?? 0} / 500`}
+                      </span>
+                    </div>
+                    <button
+                      className="btn btn--ghost"
+                      style={{ height: 26, fontSize: 11, padding: '0 10px', opacity: settings.targets.length <= 1 ? 0.4 : 1 }}
+                      onClick={() => removeTarget(t.id)}
+                      disabled={settings.targets.length <= 1}
+                      title={settings.targets.length <= 1 ? 'At least one target required' : 'Remove'}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-            <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <input
+                className="tinput"
                 placeholder="Label (optional)"
-                className="input"
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
+                style={{ flex: 1 }}
               />
               <input
-                placeholder="Host (e.g. cloudflare.com)"
-                className="input"
+                className="tinput"
+                placeholder="Host · e.g. cloudflare.com"
                 value={newHost}
                 onChange={e => setNewHost(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addTarget()}
+                style={{ flex: 1.4 }}
               />
-              <button
-                className="px-3 rounded-md bg-sky-600 hover:bg-sky-500 text-white text-sm"
-                onClick={addTarget}
-              >
+              <button className="btn btn--primary" onClick={addTarget}>
+                <I.Plus />
                 Add
               </button>
             </div>
           </div>
         </div>
       </div>
-      <style>{`
-        .input {
-          background: #171b24;
-          border: 1px solid #262c3a;
-          border-radius: 6px;
-          padding: 6px 10px;
-          color: #e2e8f0;
-          font-size: 13px;
-          outline: none;
-        }
-        .input:focus { border-color: #0ea5e9; }
-      `}</style>
     </div>
   )
 }
 
-function Stat({ label, val }: { label: string; val: string }) {
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between">
-      <span>{label}</span>
-      <span className="font-mono text-slate-300">{val}</span>
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex items-center justify-between gap-4">
-      <span className="text-sm text-slate-300">{label}</span>
-      <div className="w-48">{children}</div>
-    </label>
-  )
-}
-
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center justify-between gap-4 cursor-pointer">
-      <span className="text-sm text-slate-300">{label}</span>
-      <span
-        className={`inline-flex w-10 h-6 rounded-full border transition ${
-          checked ? 'bg-sky-600 border-sky-500' : 'bg-surface-3 border-surface-border'
-        }`}
-        onClick={() => onChange(!checked)}
-      >
-        <span
-          className={`block w-5 h-5 rounded-full bg-white shadow transition-transform mt-[1px] ${
-            checked ? 'translate-x-[18px]' : 'translate-x-[2px]'
-          }`}
-        />
+    <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+      <span className="t-eyebrow" style={{ marginBottom: 4 }}>
+        {label}
       </span>
-    </label>
+      {children}
+    </div>
+  )
+}
+
+function Row({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '11px 0',
+        justifyContent: 'space-between',
+        borderTop: '1px solid rgba(255,255,255,0.04)',
+        gap: 16
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span style={{ fontSize: 13, color: 'var(--fg-0)', fontWeight: 500 }}>{label}</span>
+        {sub && <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 2 }}>{sub}</span>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{children}</div>
+    </div>
+  )
+}
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button type="button" className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} aria-pressed={on}>
+      <i />
+    </button>
+  )
+}
+
+function NumericInput({
+  value,
+  min,
+  step,
+  unit,
+  onChange
+}: {
+  value: number
+  min: number
+  step: number
+  unit: string
+  onChange: (n: number) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 130 }}>
+      <input
+        className="tinput"
+        type="number"
+        min={min}
+        step={step}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ textAlign: 'right' }}
+      />
+      <span className="mono" style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+        {unit}
+      </span>
+    </div>
+  )
+}
+
+function CalibrationBar({
+  label,
+  value,
+  fillPct,
+  color
+}: {
+  label: string
+  value: string
+  fillPct: number
+  color: string
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>{label}</span>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
+          {value}
+        </span>
+      </div>
+      <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+        <div
+          style={{
+            width: `${Math.max(0, Math.min(100, fillPct))}%`,
+            height: '100%',
+            background: color,
+            boxShadow: `0 0 8px ${color}99`,
+            borderRadius: 2
+          }}
+        />
+      </div>
+    </div>
   )
 }

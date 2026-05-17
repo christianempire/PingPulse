@@ -7,25 +7,22 @@ export default {
       colors: {
         // Status palette — keep in sync with src/shared/thresholds.ts
         status: {
-          green: '#22c55e',
-          yellow: '#eab308',
-          orange: '#f97316',
-          red: '#ef4444'
+          green: '#22D69A',
+          yellow: '#F0B72B',
+          orange: '#FF8A47',
+          red: '#FF5D6B',
+          gray: '#7C8493'
         },
         surface: {
-          0: '#0b0d12',
-          1: '#11141b',
-          2: '#171b24',
-          3: '#1f2533',
-          border: '#262c3a'
+          0: '#07090F',
+          1: '#0B0E18',
+          2: '#11151F'
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Consolas', 'monospace']
-      },
-      boxShadow: {
-        card: '0 1px 0 0 rgba(255,255,255,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.45)'
       }
     }
   },

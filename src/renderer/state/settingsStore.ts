@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Settings } from '@shared/types'
+import { pingpulse } from '../api'
 
 interface SettingsState {
   settings: Settings | null
@@ -13,13 +14,13 @@ export const useSettings = create<SettingsState>(set => ({
   settings: null,
   setSettings: s => set({ settings: s }),
   patch: async p => {
-    const next = await window.pingpulse.setSettings(p)
+    const next = await pingpulse.setSettings(p)
     set({ settings: next })
   },
   setMonitoring: async on => {
-    await window.pingpulse.setMonitoring(on)
+    await pingpulse.setMonitoring(on)
   },
   setCompact: async on => {
-    await window.pingpulse.setCompact(on)
+    await pingpulse.setCompact(on)
   }
 }))

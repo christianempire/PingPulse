@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, screen, nativeImage } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { PingEngine } from './pingEngine'
 import { loadSettings, mergeSettings } from './settingsStore'
@@ -11,6 +12,18 @@ import type { PingSample, Settings, StatusColor, Target } from '@shared/types'
 import type { EffectiveThresholds } from '@shared/baseline'
 
 const LAUNCH_HIDDEN = process.argv.includes('--hidden')
+
+function appIconPath(): string {
+  const base = app.isPackaged
+    ? join(process.resourcesPath, 'icons')
+    : join(app.getAppPath(), 'resources', 'icons')
+  return join(base, 'app.ico')
+}
+
+function appIcon(): Electron.NativeImage | undefined {
+  const p = appIconPath()
+  return existsSync(p) ? nativeImage.createFromPath(p) : undefined
+}
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
@@ -110,8 +123,9 @@ function createMainWindow() {
     minWidth: 760,
     minHeight: 540,
     show: !settings.startMinimized && !LAUNCH_HIDDEN,
-    backgroundColor: '#0b0d12',
+    backgroundColor: '#07090f',
     autoHideMenuBar: true,
+    icon: appIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -142,9 +156,9 @@ function createOverlayWindow() {
   }
   const display = screen.getPrimaryDisplay().workArea
   overlayWindow = new BrowserWindow({
-    width: 260,
-    height: 96,
-    x: display.x + display.width - 280,
+    width: 280,
+    height: 116,
+    x: display.x + display.width - 300,
     y: display.y + 20,
     frame: false,
     resizable: false,
@@ -153,6 +167,7 @@ function createOverlayWindow() {
     skipTaskbar: true,
     show: true,
     backgroundColor: '#00000000',
+    icon: appIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -233,6 +248,10 @@ if (!gotLock) {
 }
 
 app.whenReady().then(async () => {
+  // Match build.appId — ensures Windows groups taskbar entries under our app
+  // and uses our icon for native notifications.
+  if (process.platform === 'win32') app.setAppUserModelId('com.pingpulse.app')
+
   const gw = await detectGatewayTarget()
   if (gw && !settings.targets.some(t => t.host === gw.host)) {
     settings = mergeSettings({ targets: [...settings.targets, gw] })

@@ -4,6 +4,7 @@ import { useSamples } from './state/samplesStore'
 import { useThresholds } from './state/thresholdsStore'
 import Dashboard from './components/Dashboard'
 import CompactOverlay from './components/CompactOverlay'
+import { pingpulse } from './api'
 
 interface AppProps { isOverlay: boolean }
 
@@ -16,7 +17,7 @@ export default function App({ isOverlay }: AppProps) {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([window.pingpulse.getSettings(), window.pingpulse.getThresholds()]).then(
+    Promise.all([pingpulse.getSettings(), pingpulse.getThresholds()]).then(
       ([s, t]) => {
         if (cancelled) return
         setSettings(s)
@@ -24,12 +25,12 @@ export default function App({ isOverlay }: AppProps) {
         setThresholds(t)
       }
     )
-    const offSettings = window.pingpulse.onSettings(s => {
+    const offSettings = pingpulse.onSettings(s => {
       setSettings(s)
       setWindowMs(s.rollingWindowMin * 60_000)
     })
-    const offSample = window.pingpulse.onSample(s => pushSample(s))
-    const offThresholds = window.pingpulse.onThresholds(m => setThresholds(m))
+    const offSample = pingpulse.onSample(s => pushSample(s))
+    const offThresholds = pingpulse.onThresholds(m => setThresholds(m))
     return () => {
       cancelled = true
       offSettings()

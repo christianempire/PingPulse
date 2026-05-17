@@ -1,18 +1,39 @@
+import type { StatusColor } from '@shared/types'
+import { STATUS_COLOR_HEX } from '@shared/thresholds'
+
 interface Props {
   label: string
   value: string
-  suffix?: string
-  accent?: string
+  unit?: string
+  status?: StatusColor
+  emphasize?: boolean
+  sub?: string
 }
 
-export default function StatCard({ label, value, suffix, accent }: Props) {
+export default function StatCard({ label, value, unit = 'ms', status, emphasize = false, sub }: Props) {
+  const color = status ? STATUS_COLOR_HEX[status] : 'var(--fg-0)'
   return (
-    <div className="card flex flex-col justify-between min-h-[88px]">
-      <div className="stat-label">{label}</div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="stat-value" style={accent ? { color: accent } : undefined}>{value}</span>
-        {suffix && <span className="text-sm text-slate-400">{suffix}</span>}
+    <div className="glass" style={{ flex: 1, padding: '14px 16px 16px', minHeight: 92 }}>
+      <div className="t-eyebrow">{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 14 }}>
+        <span
+          className="t-display t-num"
+          style={{
+            fontSize: 30,
+            lineHeight: 1,
+            fontWeight: 600,
+            color,
+            textShadow: emphasize ? `0 0 18px ${color}66` : 'none',
+            letterSpacing: -0.6
+          }}
+        >
+          {value}
+        </span>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginLeft: 2 }}>
+          {unit}
+        </span>
       </div>
+      {sub && <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>{sub}</div>}
     </div>
   )
 }
