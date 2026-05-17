@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-1 border border-surface-border rounded-xl shadow-card p-4;
+  }
+  .stat-label {
+    @apply text-xs uppercase tracking-wider text-slate-400;
+  }
+  .stat-value {
+    @apply font-mono text-2xl text-slate-100;
+  }
+}
+
+/* Overlay window: keep it click-through-friendly but interactive on its body */
+body.overlay {
+  background: transparent;
+  -webkit-app-region: drag;
+}
+body.overlay button { -webkit-app-region: no-drag; }
