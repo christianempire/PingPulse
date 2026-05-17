@@ -68,9 +68,14 @@ export interface PingPulseApi {
   showMainWindow: () => Promise<void>
   getThresholds: () => Promise<Record<TargetId, import('./baseline').EffectiveThresholds>>
   isPackaged: () => Promise<boolean>
+  windowMinimize: () => Promise<void>
+  windowMaximizeToggle: () => Promise<void>
+  windowClose: () => Promise<void>
+  windowIsMaximized: () => Promise<boolean>
   onSample: (cb: (s: PingSample) => void) => () => void
   onSettings: (cb: (s: Settings) => void) => () => void
   onThresholds: (cb: (m: Record<TargetId, import('./baseline').EffectiveThresholds>) => void) => () => void
+  onMaximized: (cb: (m: boolean) => void) => () => void
 }
 
 declare global {

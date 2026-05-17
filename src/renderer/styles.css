@@ -396,17 +396,35 @@ body {
   left: 18px;
 }
 
-/* ====== custom scrollbar ====== */
+/* ====== custom scrollbar (global) ====== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Tighter variant for inset scroll regions (e.g. event timeline) */
 .scroll::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 .scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-}
-.scroll::-webkit-scrollbar-track {
-  background: transparent;
+  border: 1px solid transparent;
 }
 
 /* ====== util ====== */

@@ -238,6 +238,18 @@ function buildMockApi(): PingPulseApi {
     showMainWindow: async () => {},
     getThresholds: async () => thresholdsMap,
     isPackaged: async () => false,
+    windowMinimize: async () => {
+      try { await window.pingpulse?.windowMinimize() } catch {}
+    },
+    windowMaximizeToggle: async () => {
+      try { await window.pingpulse?.windowMaximizeToggle() } catch {}
+    },
+    windowClose: async () => {
+      try { await window.pingpulse?.windowClose() } catch {}
+    },
+    windowIsMaximized: async () => {
+      try { return (await window.pingpulse?.windowIsMaximized()) ?? false } catch { return false }
+    },
     onSample: cb => {
       sampleListeners.add(cb)
       return () => { sampleListeners.delete(cb) }
@@ -249,6 +261,15 @@ function buildMockApi(): PingPulseApi {
     onThresholds: cb => {
       thresholdsListeners.add(cb)
       return () => { thresholdsListeners.delete(cb) }
+    },
+    onMaximized: cb => {
+      // Forward real window-state events through the mock surface so the
+      // title bar's max/restore glyph still flips correctly.
+      try {
+        return window.pingpulse?.onMaximized?.(cb) ?? (() => {})
+      } catch {
+        return () => {}
+      }
     }
   }
 

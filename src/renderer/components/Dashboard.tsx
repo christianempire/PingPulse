@@ -9,6 +9,7 @@ import { STATUS_COLOR_HEX } from '@shared/thresholds'
 import EventTimeline from './EventTimeline'
 import SettingsPanel from './SettingsPanel'
 import StatCard from './StatCard'
+import TitleBar from './TitleBar'
 import {
   GlassSelect,
   HealthRing,
@@ -79,10 +80,7 @@ export default function Dashboard() {
 
   return (
     <div className="pp-desk" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Faux window chrome with title — keeps Electron's native bar hidden via autoHideMenuBar */}
-      <div style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--fg-2)', letterSpacing: '0.04em', WebkitAppRegion: 'drag' } as React.CSSProperties}>
-        PingPulse
-      </div>
+      <TitleBar />
 
       <div style={{ flex: 1, padding: '8px 20px 20px', display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
         {/* App bar */}

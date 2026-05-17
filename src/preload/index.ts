@@ -11,6 +11,10 @@ const api: PingPulseApi = {
   showMainWindow: () => ipcRenderer.invoke(IPC.showMain),
   getThresholds: () => ipcRenderer.invoke(IPC.getThresholds),
   isPackaged: () => ipcRenderer.invoke(IPC.isPackaged),
+  windowMinimize: () => ipcRenderer.invoke(IPC.windowMinimize),
+  windowMaximizeToggle: () => ipcRenderer.invoke(IPC.windowMaximizeToggle),
+  windowClose: () => ipcRenderer.invoke(IPC.windowClose),
+  windowIsMaximized: () => ipcRenderer.invoke(IPC.windowIsMaximized),
   onSample: cb => {
     const handler = (_e: Electron.IpcRendererEvent, s: PingSample) => cb(s)
     ipcRenderer.on(IPC.sample, handler)
@@ -25,6 +29,11 @@ const api: PingPulseApi = {
     const handler = (_e: Electron.IpcRendererEvent, m: Record<TargetId, EffectiveThresholds>) => cb(m)
     ipcRenderer.on(IPC.thresholds, handler)
     return () => ipcRenderer.removeListener(IPC.thresholds, handler)
+  },
+  onMaximized: cb => {
+    const handler = (_e: Electron.IpcRendererEvent, m: boolean) => cb(m)
+    ipcRenderer.on(IPC.maximized, handler)
+    return () => ipcRenderer.removeListener(IPC.maximized, handler)
   }
 }
 

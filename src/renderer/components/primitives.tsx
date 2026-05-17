@@ -44,6 +44,12 @@ export const I = {
       <rect x="4" y="4" width="8" height="8" rx="1" />
     </svg>
   ),
+  Restore: (p: IconProps) => (
+    <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.4" {...p}>
+      <rect x="3.5" y="5.5" width="7" height="7" rx="1" />
+      <path d="M5.5 5.5 V4 a1 1 0 0 1 1 -1 H11.5 a1 1 0 0 1 1 1 V9.5 H10.5" />
+    </svg>
+  ),
   ChevDown: (p: IconProps) => (
     <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <path d="M4 6 L8 10 L12 6" />

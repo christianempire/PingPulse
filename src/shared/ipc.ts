@@ -6,7 +6,12 @@ export const IPC = {
   showMain: 'pp:showMain',
   getThresholds: 'pp:getThresholds',
   isPackaged: 'pp:isPackaged',
+  windowMinimize: 'pp:window:minimize',
+  windowMaximizeToggle: 'pp:window:maximize-toggle',
+  windowClose: 'pp:window:close',
+  windowIsMaximized: 'pp:window:is-maximized',
   sample: 'pp:sample',
   settings: 'pp:settings',
-  thresholds: 'pp:thresholds'
+  thresholds: 'pp:thresholds',
+  maximized: 'pp:window:maximized'
 } as const

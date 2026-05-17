@@ -124,6 +124,7 @@ function createMainWindow() {
     minHeight: 540,
     show: !settings.startMinimized && !LAUNCH_HIDDEN,
     backgroundColor: '#07090f',
+    frame: false,
     autoHideMenuBar: true,
     icon: appIcon(),
     webPreferences: {
@@ -138,6 +139,12 @@ function createMainWindow() {
       mainWindow?.hide()
     }
   })
+  const broadcastMaximized = () => {
+    if (!mainWindow) return
+    broadcast(IPC.maximized, mainWindow.isMaximized())
+  }
+  mainWindow.on('maximize', broadcastMaximized)
+  mainWindow.on('unmaximize', broadcastMaximized)
   mainWindow.webContents.setWindowOpenHandler(details => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -327,6 +334,14 @@ app.whenReady().then(async () => {
   ipcMain.handle(IPC.showMain, () => createMainWindow())
   ipcMain.handle(IPC.getThresholds, () => buildThresholdsMap())
   ipcMain.handle(IPC.isPackaged, () => app.isPackaged)
+  ipcMain.handle(IPC.windowMinimize, () => mainWindow?.minimize())
+  ipcMain.handle(IPC.windowMaximizeToggle, () => {
+    if (!mainWindow) return
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+  })
+  ipcMain.handle(IPC.windowClose, () => mainWindow?.close())
+  ipcMain.handle(IPC.windowIsMaximized, () => mainWindow?.isMaximized() ?? false)
 
   if (!LAUNCH_HIDDEN && !settings.startMinimized) createMainWindow()
   if (settings.compactMode) createOverlayWindow()
