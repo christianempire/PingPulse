@@ -101,7 +101,17 @@ export default function SettingsPanel({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="scroll" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div
+          className="scroll"
+          style={{
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            paddingRight: 12,
+            marginRight: -8
+          }}
+        >
           <Section label="Monitoring">
             <Row label="Ping interval" sub="Lower values use more CPU & battery">
               <NumericInput
