@@ -119,9 +119,9 @@ function createMainWindow() {
   }
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 760,
+    height: 800,
     minWidth: 760,
-    minHeight: 540,
+    minHeight: 580,
     show: !settings.startMinimized && !LAUNCH_HIDDEN,
     backgroundColor: '#07090f',
     frame: false,
