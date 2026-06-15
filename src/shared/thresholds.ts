@@ -45,5 +45,6 @@ export const DEFAULT_SETTINGS = {
   compactMode: false,
   startMinimized: false,
   launchOnStartup: false,
-  monitoring: true
+  monitoring: true,
+  overlayPosition: null
 }

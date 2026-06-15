@@ -48,6 +48,7 @@ export interface Settings {
   startMinimized: boolean
   launchOnStartup: boolean
   monitoring: boolean
+  overlayPosition: { x: number; y: number } | null
 }
 
 export interface HealthScore {

@@ -156,17 +156,44 @@ function createMainWindow() {
   }
 }
 
+const OVERLAY_W = 280
+const OVERLAY_H = 116
+
+// Default to the top-right corner of the primary monitor's work area.
+function defaultOverlayPosition(): { x: number; y: number } {
+  const wa = screen.getPrimaryDisplay().workArea
+  return { x: wa.x + wa.width - OVERLAY_W - 20, y: wa.y + 20 }
+}
+
+// Restore the saved position only if it still lands on a currently-connected
+// monitor — guards against a display being unplugged or rearranged while the
+// app was closed, which would otherwise strand the overlay off-screen.
+function resolveOverlayPosition(saved: { x: number; y: number } | null): { x: number; y: number } {
+  if (!saved) return defaultOverlayPosition()
+  const win = { x: saved.x, y: saved.y, width: OVERLAY_W, height: OVERLAY_H }
+  const winArea = OVERLAY_W * OVERLAY_H
+  const visible = screen.getAllDisplays().some(d => {
+    const b = d.bounds
+    const ix = Math.max(0, Math.min(win.x + win.width, b.x + b.width) - Math.max(win.x, b.x))
+    const iy = Math.max(0, Math.min(win.y + win.height, b.y + b.height) - Math.max(win.y, b.y))
+    return ix * iy >= winArea * 0.25 // at least a quarter on-screen so it's grabbable
+  })
+  return visible ? { x: saved.x, y: saved.y } : defaultOverlayPosition()
+}
+
+let overlayMoveTimer: NodeJS.Timeout | null = null
+
 function createOverlayWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.show()
     return
   }
-  const display = screen.getPrimaryDisplay().workArea
+  const pos = resolveOverlayPosition(settings.overlayPosition)
   overlayWindow = new BrowserWindow({
-    width: 280,
-    height: 116,
-    x: display.x + display.width - 300,
-    y: display.y + 20,
+    width: OVERLAY_W,
+    height: OVERLAY_H,
+    x: pos.x,
+    y: pos.y,
     frame: false,
     resizable: false,
     transparent: true,
@@ -182,6 +209,18 @@ function createOverlayWindow() {
     }
   })
   overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+  // Persist the overlay position as the user drags it (debounced so we only
+  // write once the move settles).
+  overlayWindow.on('move', () => {
+    if (overlayMoveTimer) clearTimeout(overlayMoveTimer)
+    overlayMoveTimer = setTimeout(() => {
+      overlayMoveTimer = null
+      if (!overlayWindow || overlayWindow.isDestroyed()) return
+      const [x, y] = overlayWindow.getPosition()
+      settings = mergeSettings({ overlayPosition: { x, y } })
+    }, 400)
+    overlayMoveTimer.unref()
+  })
   if (process.env['ELECTRON_RENDERER_URL']) {
     overlayWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/index.html?overlay=1')
   } else {
@@ -190,6 +229,10 @@ function createOverlayWindow() {
 }
 
 function destroyOverlayWindow() {
+  if (overlayMoveTimer) {
+    clearTimeout(overlayMoveTimer)
+    overlayMoveTimer = null
+  }
   if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.destroy()
   overlayWindow = null
 }

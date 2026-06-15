@@ -33,8 +33,14 @@ if (existsSync(targetDir)) {
   console.log(`› ${targetDir} not present, skipping`)
 }
 
-console.log('› Removing Windows autostart entry (HKCU Run "PingPulse")')
-const psCmd = `Remove-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'PingPulse' -ErrorAction SilentlyContinue`
+// Remove both the app-owned entry ("com.pingpulse.app", written by Electron's
+// setLoginItemSettings) and the legacy "PingPulse" entry from older deploys.
+// The exe is gone by now, so the app can no longer clear its own key.
+console.log('› Removing Windows autostart entries (HKCU Run)')
+const run = `HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`
+const psCmd =
+  `Remove-ItemProperty -Path '${run}' -Name 'com.pingpulse.app' -ErrorAction SilentlyContinue; ` +
+  `Remove-ItemProperty -Path '${run}' -Name 'PingPulse' -ErrorAction SilentlyContinue`
 spawnSync('powershell.exe', ['-NoProfile', '-Command', psCmd], { stdio: 'inherit' })
 
 if (wipeData) {

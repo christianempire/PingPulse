@@ -154,7 +154,8 @@ function buildSettings(): Settings {
     compactMode: false,
     startMinimized: false,
     launchOnStartup: false,
-    monitoring: true
+    monitoring: true,
+    overlayPosition: null
   }
 }
 

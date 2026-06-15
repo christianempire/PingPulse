@@ -1,28 +1,26 @@
 #!/usr/bin/env node
 // Builds PingPulse, packages it to a portable win-unpacked directory,
-// copies the result to %LOCALAPPDATA%\Programs\PingPulse, optionally
-// registers it for Windows autostart, and (optionally) launches it.
+// copies the result to %LOCALAPPDATA%\Programs\PingPulse, and launches it.
 //
 // Usage:
-//   npm run deploy                      # build + copy (does NOT touch autostart)
-//   npm run deploy -- --autostart       # also write the HKCU Run entry
-//   npm run deploy -- --launch          # also launch the deployed app now
-//   npm run deploy -- --autostart --launch
+//   npm run deploy                      # build, copy, and launch
+//
+// Autostart is owned entirely by the app itself: toggle "Launch on Windows
+// startup" in Settings, which writes the HKCU Run entry via Electron's
+// setLoginItemSettings (registry value "com.pingpulse.app"). This script no
+// longer writes its own Run entry, and removes the legacy "PingPulse" one if
+// a previous --autostart deploy left it behind.
 
 import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { homedir, platform } from 'node:os'
-import { argv, exit, cwd, env } from 'node:process'
+import { exit, cwd, env } from 'node:process'
 
 if (platform() !== 'win32') {
   console.error('deploy.mjs currently supports Windows only.')
   exit(1)
 }
-
-const flags = new Set(argv.slice(2))
-const doAutostart = flags.has('--autostart')
-const doLaunch = flags.has('--launch')
 
 const localAppData = env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
 const targetDir = join(localAppData, 'Programs', 'PingPulse')
@@ -144,31 +142,24 @@ if (!existsSync(exePath)) {
   exit(1)
 }
 
-if (doAutostart) {
-  console.log('\n› Registering Windows autostart (HKCU Run)')
-  const psCmd = `New-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Force | Out-Null; ` +
-    `Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'PingPulse' -Value '"${exePath}" --hidden'`
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCmd], { stdio: 'inherit' })
-  if (r.status !== 0) {
-    console.error('  Failed to write autostart registry entry.')
-    exit(r.status ?? 1)
-  }
-}
+// Autostart is owned solely by the app (Electron setLoginItemSettings, value
+// "com.pingpulse.app"). Remove the legacy "PingPulse" Run entry that older
+// --autostart deploys created, so only one mechanism controls login launch.
+console.log('\n› Removing legacy autostart entry (if present)')
+spawnSync('powershell.exe',
+  ['-NoProfile', '-Command',
+    `Remove-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' ` +
+    `-Name 'PingPulse' -ErrorAction SilentlyContinue`],
+  { stdio: 'ignore' })
 
-if (doLaunch) {
-  console.log('\n› Launching deployed app (hidden)')
-  // spawn (not spawnSync) so we don't block waiting for the long-running app
-  // to exit. detached + stdio:'ignore' + unref let Node exit immediately.
-  const child = spawn(exePath, ['--hidden'], { detached: true, stdio: 'ignore' })
-  child.unref()
-}
+console.log('\n› Launching deployed app')
+// spawn (not spawnSync) so we don't block waiting for the long-running app
+// to exit. detached + stdio:'ignore' + unref let Node exit immediately.
+const child = spawn(exePath, [], { detached: true, stdio: 'ignore' })
+child.unref()
 
 console.log('\nDone.')
 console.log(`  Installed at:  ${targetDir}`)
 console.log(`  Executable:    ${exePath}`)
-if (doAutostart) {
-  console.log(`  Autostart:     enabled (HKCU Run "PingPulse")`)
-} else {
-  console.log(`  Autostart:     not changed. Re-run with --autostart, or toggle "Launch on Windows startup" in Settings.`)
-}
+console.log(`  Autostart:     controlled in-app via "Launch on Windows startup" (Settings)`)
 console.log(`\nTo remove: npm run undeploy`)
